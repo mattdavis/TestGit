@@ -1,0 +1,778 @@
+/** Temporary globals ************************************************************/
+
+/** Backgrounds ************************************************************/
+/** An image to be used by the application  
+    @type Image
+*/
+var g_back0 = new Image();
+g_back0.src = "repeatBackground.png";
+
+/** An image to be used by the application  
+    @type Image
+*/
+var g_back1 = new Image();
+g_back1.src = "fruitSalad.png";
+
+var yAnim = 0;
+
+/** Characters ************************************************************/
+/** An image to be used by the application  
+    @type Image
+*/
+var s_gnu = new Image();
+s_gnu.src = "gnu.png";
+
+/** An image to be used by the application  
+    @type Image
+*/
+var s_kisi = new Image();
+s_kisi.src = "kisi.png";
+
+/** An image to be used by the application  
+    @type Image
+*/
+var s_tux = new Image();
+s_tux.src = "tux.png";
+
+/** An image to be used by the application  
+    @type Image
+*/
+var s_wilber = new Image();
+s_wilber.src = "wilber.png";
+
+/** An image to be used by the application  
+    @type Image
+*/
+var s_kit = new Image();
+s_kit.src = "kit.png";
+
+/** An image to be used by the application  
+    @type Image
+*/
+var s_pacman = new Image();
+s_pacman.src = "pacman.png";
+
+/** An image to be used by the application  
+    @type Image
+*/
+var s_android = new Image();
+s_android.src = "android.png";
+
+/** An image to be used by the application  
+    @type Image
+*/
+var s_sara = new Image();
+s_sara.src = "sara.png";
+
+
+/** An image to be used by the application  
+    @type Image
+
+var g_back2 = new Image();
+g_back2.src = "jsplatformer4_b2.png";
+*/
+
+/** End of temp globals **********************************************************/
+
+
+/** Our main HQ to control our game objects
+	@type SamuraiHQ
+*/
+var s_SamuraiHQ
+
+/** Global var to hol the FPS we want to target
+	@type Number
+*/
+var FPS = 30;
+
+/** seconds between redraw this will help us track our redraw rate
+	@type Number
+*/
+var REDRAW_RATE	 = 1/FPS
+
+
+
+function roughSizeOfObject( object ) {
+
+    var objectList = [];
+
+    var recurse = function( value )
+    {
+        var bytes = 0;
+
+        if ( typeof value === 'boolean' ) {
+            bytes = 4;
+        }
+        else if ( typeof value === 'string' ) {
+            bytes = value.length * 2;
+        }
+        else if ( typeof value === 'number' ) {
+            bytes = 8;
+        }
+        else if
+        (
+            typeof value === 'object'
+            && objectList.indexOf( value ) === -1
+        )
+        {
+            objectList[ objectList.length ] = value;
+
+            for( i in value ) {
+                bytes+= 8; // an assumed existence overhead
+                bytes+= recurse( value[i] )
+            }
+        }
+
+        return bytes;
+    }
+
+    return recurse( object );
+}
+
+
+
+/**	Entry point */
+window.onload = init;
+
+function init()
+{
+	new SamuraiHQ().buildHQ();
+}
+// Should be split into it's own JS file called samurai.js ********************************************************
+function Samurai()
+{
+	/** X axis position
+		@type number
+	*/
+	this.x = 0;
+	
+	/** Y axis position
+		@type number
+	*/
+	this.y = 0;
+
+	/** Z-order helps determin what order to draw objects lower gets drawn first and will
+		be drawn over by objects with a higher z-order
+	*/
+	this.zOrder = 0;
+	
+	this.buildSamurai = function(/**Number*/ x, /**Number*/ y, /**Number*/ z)
+	{
+		this.x = x;
+		this.y = y;
+		this.zOrder = z;
+		s_SamuraiHQ.addSamurai(this);
+		return this;
+	}
+		
+	/** Clean up
+	*/
+	this.destroySamurai = function()
+	{
+		s_SamuraiHQ.removeSamurai(this);
+	}
+}
+
+
+
+// Should be split into it's own JS file called samuraiHQ.js ******************************************************
+function SamuraiHQ()
+{
+	/** A reference to the main canvas visable to the user.
+		@type canvasRenderingContext2D
+	*/
+	this.canvas = null
+	
+	/** A reference to the 2D context of the canvas element
+        @type CanvasRenderingContext2D
+    */
+	this.canvas2D = null;
+	
+	
+	/** We need a Backbuffer to help with frame slicing we will create our own canvas
+		and use that to predraw the canvas on.  Then we can switch from the secondary 
+		or back canvas to the visible canvas without slicing.
+	*/
+	
+    /** A reference to the in-memory canvas used as a back buffer 
+        @type HTMLCanvasElement
+    */
+    this.backBuffer = null;
+    /** A reference to the backbuffer 2D context 
+        @type CanvasRenderingContext2D
+    */
+    this.backBufferContext2D = null;
+
+	/** An array of game objects 
+        @type Arary
+    */
+    this.samurais = new Array();
+	
+    /** The time that the last frame was rendered  
+        @type Date
+    */
+    this.lastFrame = new Date().getTime();
+	
+    /** The global scrolling value of the x axis  
+        @type Number
+    */
+    this.xScroll = 0;
+	
+    /** The global scrolling value of the y axis  
+        @type Number
+    */
+    this.yScroll = 0;
+	
+    /** A reference to the WarRoom instance  
+        @type WarRoom
+    */
+    this.warRoom = null;
+	
+	
+	/** A reference to the EnvironmentManager instance  
+        @type EnvironmentManager
+    */
+    this.environmentManager = null;
+
+	
+	/**
+        Initialises HQ
+        @return A reference to the HQ
+    */
+    this.buildHQ = function()
+    {
+        // set the global pointer to reference this HQ
+        s_SamuraiHQ = this;
+		
+		// Creating some event's to catch the keyboard up and down events.
+		document.onkeydown = function(event){s_SamuraiHQ.keyDown(event);}
+		document.onkeyup = function(event){s_SamuraiHQ.keyUp(event);}
+		document.getElementById('yAnimation').onchange = function(event){yAnim = parseInt(this.value);}
+
+		// get references to the canvas elements and their 2D contexts
+		this.canvas = document.getElementById('canvas');
+        
+		//This will save IE's debugger from going crazy.
+		if (this.canvas.getContext)
+		{
+			this.canvasSupported = true;
+			this.context2D = this.canvas.getContext('2d');
+			
+			this.backBuffer = document.createElement('canvas');
+			this.backBuffer.width = this.canvas.width;
+			this.backBuffer.height = this.canvas.height;
+			this.backBufferContext2D = this.backBuffer.getContext('2d');
+		}
+		// create a new EnvironmentManager
+        this.environmentManager = new EnvironmentManager().buildEnvironmentManager();
+        
+        // create a new WarRoom
+        //this.warRoom = new WarRoom().buildWarRoom();
+
+        // use setInterval to call the draw function 
+        setInterval(function() { s_SamuraiHQ.draw(); }, REDRAW_RATE);
+        
+        return this;        
+    }
+	
+	/**
+        The render loop
+    */
+    this.draw = function ()
+    {
+        // calculate the time since the last frame
+        var thisFrame = new Date().getTime();
+        var dt = (thisFrame - this.lastFrame)/1000;
+        this.lastFrame = thisFrame;
+        
+        // clear the drawing contexts
+		if (this.canvasSupported)
+		{
+			this.backBufferContext2D.clearRect(0, 0, this.backBuffer.width, this.backBuffer.height);
+			this.context2D.clearRect(0, 0, this.canvas.width, this.canvas.height);
+			
+			// first update all the game objects
+			for (x in this.samurais)
+			{
+				if (this.samurais[x].update)
+				{
+					this.samurais[x].update(dt, this.backBufferContext2D, this.xScroll, this.yScroll);
+				}
+			}
+
+			// then draw the game objects
+			for (x in this.samurais)
+			{
+				if (this.samurais[x].draw)
+				{
+					this.samurais[x].draw(dt, this.backBufferContext2D, this.xScroll, this.yScroll);
+				}
+			}
+			
+			// copy the back buffer to the displayed canvas
+			this.context2D.drawImage(this.backBuffer, 0, 0);
+		}
+    };
+	
+	/**
+        Adds a new samuria to the samurais collection
+        @param samurai The object to add
+    */
+    this.addSamurai = function(samurai)
+    {
+        this.samurais.push(samurai);
+        this.samurais.sort(function(a,b){return a.zOrder - b.zOrder;})
+    };
+    
+    /**
+        Removes a samurai from the gameObjects collection
+        @param samurai The object to remove
+    */
+    this.removeSamurai = function(samurai)
+    {
+        this.samurais.removeObject(samurai);
+    }
+	
+	this.keyDown = function(event)
+	{
+		for (x in this.samurais)
+		{
+			if (this.samurais[x].keyDown)
+			{
+				this.samurais[x].keyDown(event);
+			}
+		}
+	}
+	
+	this.keyUp = function(event)
+	{
+		for (x in this.samurais)
+		{
+			if (this.samurais[x].keyUp)
+			{
+				this.samurais[x].keyUp(event);
+			}
+		}
+	}
+	
+}	
+
+
+// Should be split into it's own JS file called warRoom.js ******************************************************
+function WarRoom()
+{
+    /**
+        Initialises this object
+        @return A reference to the initialised object
+    */
+    this.buildWarRoom = function()
+    {
+        this.buildSamurai();
+		//this.background3 = new SamuraiMural().buildSamuraiMural(g_back2, 0, 100, 3, 600, 320, 1);
+        this.background2 = new SamuraiMural().buildSamuraiMural(g_back1, 0, 0, 2, 600, 400, 0.75);        
+        this.background = new SamuraiMural().buildSamuraiMural(g_back0, 0, 0, 1, 600, 400, 0.5);
+        return this;
+    }
+	
+	/**
+        Updates the object
+        @param dt The time since the last frame in seconds
+        @param context The drawing context 
+        @param xScroll The global scrolling value of the x axis  
+        @param yScroll The global scrolling value of the y axis 
+    */
+    this.update = function(/**Number*/ dt, /**CanvasRenderingContext2D*/ context, /**Number*/ xScroll, /**Number*/ yScroll)
+    {
+		s_SamuraiHQ.xScroll += 50 * dt;
+	}
+}
+WarRoom.prototype = new Samurai();
+	
+	
+// Should be split into it's own JS file called samuraiMural.js ******************************************************
+function SamuraiMural()
+{
+    /** The width that the final image will take up
+		@type Number
+	*/
+	this.width = 0;
+	/** The height that the final image will take up
+		@type Number
+	*/
+    this.height = 0;
+	/** How much of the scrollX and scrollY to apply when drawing
+		@type Number
+	*/
+    this.scrollFactor = 1;
+	
+    /**
+        Initialises this object
+        @return A reference to the initialised object
+    */
+    this.buildSamuraiMural = function(image, x, y, z, width, height, scrollFactor)
+    {
+        this.buildUnStealthySamurai(image, x, y, z);
+        this.width = width;
+        this.height = height;
+        this.scrollFactor = scrollFactor;
+        return this;
+    }
+	
+    /**
+        Clean this object up
+    */
+    this.destroySamuraiMural = function()
+    {
+        this.destroyUnStealthySamurai();
+    }
+    
+	/**
+        Draws this element to the back buffer
+        @param dt Time in seconds since the last frame
+		@param context The context to draw to
+		@param xScroll The global scrolling value of the x axis  
+		@param yScroll The global scrolling value of the y axis  
+    */
+    this.draw = function(dt, canvas, xScroll, yScroll)
+    {
+        var areaDrawn = [0, 0];
+        
+        for (var y = 0; y < this.height; y += areaDrawn[1])
+        {
+            for (var x = 0; x < this.width; x += areaDrawn[0])
+            {
+                // the top left corner to start drawing the next tile from
+				var newPosition = [this.x + x, this.y + y];
+				// the amount of space left in which to draw
+                var newFillArea = [this.width - x, this.height - y];
+				// the first time around you have to start drawing from the middle of the image
+				// subsequent tiles alwyas get drawn from the top or left
+                var newScrollPosition = [0, 0];
+                if (x==0) newScrollPosition[0] = xScroll * this.scrollFactor;
+                if (y==0) newScrollPosition[1] = yScroll * this.scrollFactor;
+                areaDrawn = this.drawRepeat(canvas, newPosition, newFillArea, newScrollPosition);
+            }
+        }
+    }
+    
+    this.drawRepeat = function(canvas, newPosition, newFillArea, newScrollPosition)
+    {
+        // find where in our repeating texture to start drawing (the top left corner)
+        var xOffset = Math.abs(newScrollPosition[0]) % this.image.width;
+        var yOffset = Math.abs(newScrollPosition[1]) % this.image.height;
+        var left = newScrollPosition[0]<0?this.image.width-xOffset:xOffset;
+        var top = newScrollPosition[1]<0?this.image.height-yOffset:yOffset;
+        var width = newFillArea[0] < this.image.width-left?newFillArea[0]:this.image.width-left;
+        var height = newFillArea[1] < this.image.height-top?newFillArea[1]:this.image.height-top;
+        
+        // draw the image
+        canvas.drawImage(this.image, left, top, width, height, newPosition[0], newPosition[1], width, height);
+        
+        return [width, height];
+    }
+    
+    
+}
+	
+		
+		
+// Should be split into it's own JS file called unStealthySamurai.js ******************************************************		
+function UnStealthySamurai()
+{
+    /**
+        The image that will be displayed by this object
+        @type Image
+    */
+    this.image = null;
+    
+    /**
+        Draws this element to the back buffer
+        @param dt Time in seconds since the last frame
+		@param context The context to draw to
+		@param xScroll The global scrolling value of the x axis  
+		@param yScroll The global scrolling value of the y axis  
+    */
+    this.draw = function(/**Number*/ dt, /**CanvasRenderingContext2D*/ context, /**Number*/ xScroll, /**Number*/ yScroll)
+    {
+        context.drawImage(this.image, this.x - xScroll, this.y - yScroll);
+    }
+    
+    /**
+        Initialises this object
+        @param image The image to be displayed
+		@param x The position on the X axis
+        @param y The position on the Y axis
+		@param z The depth
+    */
+    this.buildUnStealthySamurai = function(/**Image*/ image, /**Number*/ x, /**Number*/ y, /**Number*/ z)
+    {
+        this.buildSamurai(x, y, z);
+        this.image = image;
+        return this;
+    }
+    
+    /**
+        Clean this object up
+    */
+    this.destroyUnStealthySamurai = function()
+    {
+        this.destroySamurai();
+    }
+}
+UnStealthySamurai.prototype = new Samurai();	
+SamuraiMural.prototype = new UnStealthySamurai();	
+
+
+// Should be split into it's own JS file called AnimatedUnStealthySamurai.js ******************************************************		
+
+function AnimatedUnStealthySamurai()
+{
+    /**
+        Defines the current frame that is to be rendered
+        @type Number
+     */
+    this.currentFrame = 0;
+	
+    /**
+        Defines the frames per second of the animation
+        @type Number
+     */
+    this.timeBetweenFrames = 0;
+	
+	
+    /**
+        The number of individual frames held in the image
+        @type Number
+     */
+    /**
+        Time until the next frame
+        @type number
+     */
+    this.timeSinceLastFrame = 0;
+	
+    /**
+        The width of each individual frame
+        @type Number
+     */
+    this.frameWidth = 0;
+
+    /**
+        Initialises this object
+        @param image The image to be displayed
+		@param x The position on the X axis
+        @param y The position on the Y axis
+		@param z The depth
+        @param frameCount The number of animation frames in the image
+        @param fps The frames per second to animate this object at
+    */
+    this.buildAnimatedUnStealthySamurai = function(/**Image*/ image, /**Number*/ x, /**Number*/ y, /**Number*/ z, /**Number*/ frameCount, /**Number*/ fps, /**Number*/ height, /**Number*/ yAnimation)
+    {
+        if (frameCount <= 0) throw "framecount can not be <= 0";
+        if (fps <= 0) throw "fps can not be <= 0"
+
+        this.buildUnStealthySamurai(image, x, y, z);
+        this.currentFrame = 0;
+        this.frameCount = frameCount;
+        this.timeBetweenFrames = 1/fps;
+        this.timeSinceLastFrame = this.timeBetweenFrames;
+        this.frameWidth = this.image.width / this.frameCount;
+		this.frameHeight = height;
+		this.yAnimation = yAnimation;
+		
+		return this;
+    }
+
+    /**
+        Draws this element to the back buffer
+        @param dt Time in seconds since the last frame
+		@param context The context to draw to
+		@param xScroll The global scrolling value of the x axis
+		@param yScroll The global scrolling value of the y axis
+    */
+    this.draw = function(/**Number*/ dt, /**CanvasRenderingContext2D*/ context, /**Number*/ xScroll, /**Number*/ yScroll)
+    {
+		var sourceY = this.yAnimation * this.frameHeight;
+        var sourceX = this.frameWidth * this.currentFrame;
+        context.drawImage(this.image, sourceX, sourceY, this.frameWidth, this.frameHeight, this.x - xScroll, this.y - yScroll, this.frameWidth, this.frameHeight);
+
+        this.timeSinceLastFrame -= dt;
+        if (this.timeSinceLastFrame <= 0)
+        {
+           this.timeSinceLastFrame = this.timeBetweenFrames;
+           ++this.currentFrame;
+           this.currentFrame %= this.frameCount;
+        }
+    }
+}
+
+AnimatedUnStealthySamurai.prototype = new UnStealthySamurai;		
+
+// Should be split into it's own JS file called environment.js ***************************************************		
+
+function EnvironmentManager()
+{
+    /**
+        Initialises this object
+        @return A reference to the initialised object
+    */
+    this.buildEnvironmentManager = function()
+    {
+		//this.runner = new AnimatedUnStealthySamurai().buildAnimatedUnStealthySamurai(s_gnu, 0, 0, 1, 3, 9);
+		//this.runner = new AnimatedUnStealthySamurai().buildAnimatedUnStealthySamurai(s_kisi, 56, 0, 1, 3, 9);
+		//this.runner = new AnimatedUnStealthySamurai().buildAnimatedUnStealthySamurai(s_kit, 112, 0, 1, 3, 9);
+		//this.runner = new AnimatedUnStealthySamurai().buildAnimatedUnStealthySamurai(s_pacman, 168, 0, 1, 3, 9);
+		//this.runner = new AnimatedUnStealthySamurai().buildAnimatedUnStealthySamurai(s_sara, 224, 0, 1, 3, 9);
+		//this.runner = new AnimatedUnStealthySamurai().buildAnimatedUnStealthySamurai(s_tux, 280, 0, 1, 3, 9);
+		//this.runner = new AnimatedUnStealthySamurai().buildAnimatedUnStealthySamurai(s_wilber, 336, 0, 1, 3, 9);
+		//this.runner = new AnimatedUnStealthySamurai().buildAnimatedUnStealthySamurai(s_android, 392, 0, 1, 3, 9);
+		
+		this.runner = new PlayableSamurai().buildPlayableSamurai();
+        return this;
+    }
+}
+
+
+// Should be split into it's own JS file called playableSamurai.js *************************************************
+function PlayableSamurai()
+{
+    /** The speed that the player moves at
+        @type Number
+     */
+    this.speed = 75;
+    /** True if the player is moving left, false otherwise
+        @type Boolean
+     */
+    this.left = false;
+    /** True if the player is moving right, false otherwise
+        @type Boolean
+     */
+    this.right = false;
+    /** True if the player is moving up, false otherwise
+        @type Boolean
+     */
+    this.up = false;
+    /** True if the player is moving down, false otherwise
+        @type Boolean
+     */
+    this.down = false;
+
+    /**
+        Initialises this object
+    */
+    this.buildPlayableSamurai = function()
+    {
+		//this.runner = new AnimatedUnStealthySamurai().buildAnimatedUnStealthySamurai(s_gnu, 0, 0, 1, 3, 9);
+		//function(/**Image*/ image, /**Number*/ x, /**Number*/ y, /**Number*/ z, /**Number*/ frameCount, /**Number*/ fps, /**Number*/ height, /**Number*/ yAnimation)
+		if (yAnim >= 0 && yAnim <= 8)
+        {
+			this.buildAnimatedUnStealthySamurai(s_gnu, 0, 0, 1, 3, 9, s_gnu.height / 9, Math.floor(Math.random()*9));
+		}
+        return this;
+    }
+
+    /**
+        Called when a key is pressed
+        @param event Event Object
+    */
+    this.keyDown = function(event)
+    {
+        // left
+        if (event.keyCode == 37)
+            this.left = true;
+			
+        // right
+        if (event.keyCode == 39)
+            this.right = true;
+			
+        // up
+        if (event.keyCode == 38)
+            this.up = true;
+			
+        // down
+        if (event.keyCode == 40)
+            this.down = true;
+    }
+
+    /**
+        Called when a key is let go
+        @param event Event Object
+    */
+    this.keyUp = function(event)
+    {
+        // left
+        if (event.keyCode == 37)
+            this.left = false;
+			
+        // right
+        if (event.keyCode == 39)
+            this.right = false;
+			
+         // up
+        if (event.keyCode == 38)
+            this.up = false;
+			
+        // down
+        if (event.keyCode == 40)
+            this.down = false;
+    }
+
+    /**
+        Updates the object
+        @param dt The time since the last frame in seconds
+        @param context The drawing context
+        @param xScroll The global scrolling value of the x axis
+        @param yScroll The global scrolling value of the y axis
+    */
+	this.update = function (/**Number*/ dt, /**CanvasRenderingContext2D*/context, /**Number*/ xScroll, /**Number*/ yScroll)
+    {
+        if (this.left)
+            this.x -= this.speed * dt;
+        if (this.right)
+            this.x += this.speed * dt;
+        if (this.up)
+            this.y -= this.speed * dt;
+        if (this.down)
+            this.y += this.speed * dt;
+
+        // keep the player bound on the screen
+        if (this.x > context.canvas.width - this.frameWidth)
+            this.x = context.canvas.width - this.frameWidth;
+        if (this.x < 0)
+            this.x = 0;
+        if (this.y > context.canvas.height - this.image.height)
+            this.y = context.canvas.height - this.image.height;
+        if (this.y < 0)
+            this.y = 0;
+    }
+}
+
+PlayableSamurai.prototype = new AnimatedUnStealthySamurai;
+
+
+
+
+// Should be split into it's own JS file called utils.js ***********************************************************		
+Array.prototype.remove = function(/**Number*/ from, /**Number*/ to)
+{
+  var rest = this.slice((to || from) + 1 || this.length);
+  this.length = from < 0 ? this.length + from : from;
+  return this.push.apply(this, rest);
+};
+
+/**
+    Removes a specific object from the array
+    @param object The object to remove
+*/
+Array.prototype.removeObject = function(object)
+{
+    for (var i = 0; i < this.length; ++i)
+    {
+        if (this[i] === object)
+        {
+            this.remove(i);
+            break;
+        }
+    }
+}	
+
+

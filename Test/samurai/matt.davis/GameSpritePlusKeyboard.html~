@@ -1,0 +1,31 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<html lang="en">
+<head>
+    <title>Game Version 0.1</title>
+	<script type="text/javascript" src="samuraiMainSpritePlusKeyboard.js"></script>
+	<style type="text/css">
+		body { font-family: Arial,Helvetica,sans-serif;}
+	</style>
+</head>
+<body>
+    <canvas id="canvas" width="600" height="400">
+        <p>
+            Your browser does not support the canvas element.
+        </p>
+    </canvas>
+	<form>
+		Animation [0-8] 
+		<select name="yAnimation" id="yAnimation">
+		<option value="0">0</option>
+		<option value="1">1</option>
+		<option value="2">2</option>
+		<option value="3">3</option>
+		<option value="4">4</option>
+		<option value="5">5</option>
+		<option value="6">6</option>
+		<option value="7">7</option>
+		<option value="8">8</option>
+		</select>
+	</form>
+</body>
+</html>
